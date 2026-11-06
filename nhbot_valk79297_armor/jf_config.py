@@ -1170,23 +1170,6 @@ CL_EAST_WAIT = False
 # Not adopted: 440 of 450 games identical with it, 36 passes vs 35 -- a floating hero rarely sees the minotaur in time
 # (79 of 106 minotaur deaths saw it first at distance <= 2 and lived a median 2 turns more).
 CL_FLEE = False
-# LEV_EVADE (castle_cross.lev_evade): afloat on a lasting lift (a known ring / boots of levitation) on the castle,
-# castle_power.deep_poly_escape's two rules inside castle_cross's rush loop, which holds the preempt chain for up to
-# 300 steps west of the moat (the deep escape below it never runs while we float there): below 60% HP with anything
-# next to us the known wand of polymorph at ourselves; below 90% HP with an Elbereth-ignorer in view next to us the
-# wand with the best zap_value at it along the line that holds the most hostiles, the kept wand of polymorph excluded
-# (the deep escape's STOPPER_FIX pick let a known wand of polymorph hide every unknown one), each unknown wand once.
-# A hero that came down from such a lift to kick the back door also gets BREACH_DOOR's Elbereth there (next to both
-# east eels). r16-h200-castle-diag-r1 s2 (castle 25): 53 -> 15 of 68 HP in 6 turns of melee with a Woodland-elf group
-# in the 1-wide maze corridor north of its landing, a known wand of polymorph and an unknown {cancellation, make
-# invisible, teleportation} wand unused. Only a floating hero on the castle reaches any of it (no R1 row but s2).
-LEV_EVADE = True
-# LEV_EVADE_COVET: LEV_EVADE's zap rule skips a covetous target (M3_COVETOUS: master lich, arch-lich...). best_zap
-# scores an unknown {cancellation, make invisible, teleportation} wand by its teleportation alone, and a teleported
-# covetous monster is put back next to us within a few moves (monmove.c tactics: STRAT_NONE harasses with mnexto 1 move
-# in 5). r16-h200-castle-diag-r1 s2: a master lich next to it as the ring went on, then a Woodland-elf group down the
-# 1-wide corridor that took 53 -> 15 HP -- the beam goes at them.
-LEV_EVADE_COVET = True
 # CL_BUGLE_WEST (opp_items.bugle_ok, main's idea): BUGLE_SCARE's bugle is also blown at a minotaur on the recognised castle
 # level while we are on its west side (maze or west courtyard, not yet on the moat). The bugle wakes the castle's
 # soldiers and turns them hostile (music.c awaken_soldiers), but they are walled in (raised drawbridge, towers opening

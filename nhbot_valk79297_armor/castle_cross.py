@@ -512,11 +512,6 @@ def rush_strategy(dive):
                 p = plan()
                 last = None
                 continue
-            elif jf_config.LEV_EVADE and lev_evade(castle):
-                # afloat on a lasting lift: the deep escape's zaps before the melee (see lev_evade)
-                p = plan()
-                last = None
-                continue
             elif _melee_adjacent(castle):
                 # something next to us on land: fight it with the real weapon (the dig leaves the pick in hand, and
                 # cfp-mb2-jf25 s3 bashed a lynx with it -- 'You begin bashing monsters with your pick-axe' -- missing 8
@@ -1531,107 +1526,6 @@ def _melee_adjacent(castle):
     with agent.atom_operation():
         agent.step(A.Command.FIGHT)
         agent.direction(agent.calc_direction(bl.y, bl.x, y, x))
-    return True
-
-
-LEV_POLY_MAX = 4        # LEV_EVADE: self-zaps of the wand of polymorph at most
-LEV_ZAP_MAX = 10        # LEV_EVADE: zaps at Elbereth-ignorers at most
-LEV_BEAM_REACH = 6      # LEV_EVADE: zap.c bhit's range rn1(8, 6) -- the shortest beam
-M3_COVETOUS = 0x001f    # monflag.h: wants the Amulet, the Bell, the Book, the Candelabrum or a quest artifact
-
-
-def _covetous(mon):
-    """LEV_EVADE_COVET: monmove.c is_covetous (the names in case a permonst lacks mflags3)."""
-    return bool(int(getattr(mon, 'mflags3', 0) or 0) & M3_COVETOUS) or \
-        getattr(mon, 'mname', '') in ('master lich', 'arch-lich')
-
-
-def _beam_count(castle, mons, sy, sx):
-    """LEV_EVADE: hostiles in `mons` that a beam zapped in direction (sy, sx) passes over (zap.c bhit: each monster on
-    its 6-13 squares, up to a wall; the shortest range counted)."""
-    agent = castle.agent
-    level = agent.current_level()
-    h, w = level.walkable.shape
-    spots = {(int(m[1]), int(m[2])) for m in mons}
-    y, x = int(agent.blstats.y), int(agent.blstats.x)
-    n = 0
-    for _ in range(LEV_BEAM_REACH):
-        y, x = y + sy, x + sx
-        if not (0 <= y < h and 0 <= x < w):
-            break
-        if (y, x) in spots:
-            n += 1
-        elif not level.walkable[y, x]:
-            break
-    return n
-
-
-def lev_evade(castle):
-    """LEV_EVADE (see jf_config): castle_power.deep_poly_escape's two rules for a hero afloat on a lasting lift on the
-    castle -- the rush loop holds the preempt chain for up to 300 steps, so the deep escape below it never runs while we
-    float west of the moat. Own form only (a form's hit points are the escape already). True: acted.
-    1) below 60% HP with anything next to us: the known wand of polymorph at ourselves (_poly_step: a worn ring that may
-       be polymorph control gets POLY_XORN's xorn; else a random form -- a fresh HP pool, one in five crosses water);
-    2) below 90% HP with an Elbereth-ignorer in view next to us (not a remembered 'I'): castle_power.best_zap's wand at
-       it, the kept wand of polymorph excluded, each unknown wand once (agent._last_resort_zapped), along the line that
-       holds the most hostiles (a 1-wide maze corridor lines a whole group up for one beam)."""
-    if not on_castle(castle) or not castle.levitating() or castle._timed_levitation():
-        return False
-    agent = castle.agent
-    if form_permonst(agent) is not None:
-        return False
-    from . import castle_power
-    bl = agent.blstats
-    by, bx = int(bl.y), int(bl.x)
-    hp, hpmax = bl.hitpoints, bl.max_hitpoints
-    mons = agent.get_visible_monsters()
-    near = [m for m in mons if max(abs(int(m[1]) - by), abs(int(m[2]) - bx)) == 1]
-    if not near:
-        return False
-    t = castle._tries
-    wand = castle_power._poly_wand(agent)
-    if wand is not None and hp < 0.6 * hpmax and t.get('lev_polyzaps', 0) < LEV_POLY_MAX:
-        t['lev_polyzaps'] = t.get('lev_polyzaps', 0) + 1
-        _log(castle, f'lev evade: wand of polymorph at ourselves at {hp}/{hpmax} HP (zap {t["lev_polyzaps"]}), next to '
-                     f'us {[getattr(m[3], "mname", "?") for m in near]}')
-        _poly_step(castle)
-        p = form_permonst(agent)
-        _log(castle, f'lev evade: {(agent.message or "")[:100]!r} -> form {getattr(p, "mname", None)}')
-        return True
-    if hp >= 0.9 * hpmax or t.get('lev_zaps', 0) >= LEV_ZAP_MAX:
-        return False
-    ign = [m for m in near if getattr(m[3], 'mname', 'unknown') != 'unknown' and castle.dive._ignores_elbereth(m[3])]
-    if jf_config.LEV_EVADE_COVET:
-        # a covetous monster comes back next to us whatever a wand of teleportation does to it (monmove.c tactics,
-        # STRAT_NONE: mnexto one move in five): the gamble waits for one that stays where it lands
-        ign = [m for m in ign if not _covetous(m[3])]
-    exclude = tuple(wand.glyphs) if wand is not None else ()
-    best = None
-    for m in ign:
-        _, my, mx, mon, _ = m
-        # int() each comparison first: numpy bools can't be subtracted
-        sy, sx = int(my > by) - int(my < by), int(mx > bx) - int(mx < bx)
-        it, why = castle_power.best_zap(agent, mon, sy, sx, unknown=True, exclude=exclude)
-        if it is None:
-            continue
-        n = _beam_count(castle, mons, sy, sx)
-        if best is None or n > best[0]:
-            best = (n, it, why, m)
-    if best is None:
-        return False
-    n, it, why, m = best
-    _, my, mx, mon, _ = m
-    t['lev_zaps'] = t.get('lev_zaps', 0) + 1
-    if not it.is_unambiguous():
-        agent._last_resort_zapped.add(it.glyphs[0])
-    _log(castle, f'lev evade: zapping {it.text!r} at the {getattr(mon, "mname", "?")} at {hp}/{hpmax} HP, {n} in line '
-                 f'({why})')
-    agent.zap(it, agent.calc_direction(bl.y, bl.x, my, mx))
-    msg = agent.message or ''
-    _log(castle, f'lev evade: {msg[:100]!r}')
-    if 'Nothing happens' in msg or 'You wrest' in msg:
-        agent.inventory.empty_wands.add(it.text)
-    agent.inventory.items.update(force=True)
     return True
 
 

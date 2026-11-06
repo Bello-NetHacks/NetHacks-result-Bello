@@ -1708,7 +1708,7 @@ class CastlePassage:
             self._set_state('through the door')
             self._step_to(*DOOR)
             return
-        if (jf_config.BREACH_DOOR or self._lev_door()) and not self.levitating():
+        if jf_config.BREACH_DOOR and not self.levitating():
             # the east eels start at (57,07) and (57,09), both next to this square: Elbereth under us while we work
             # the lock (a scared eel lets go, F030); a kick wipes it (dokick.c u_wipe_engr) -- written again after
             engraving = (agent.inventory.engraving_below_me or '').lower()
@@ -1761,8 +1761,6 @@ class CastlePassage:
                 agent.search()
                 return
             self._set_state('coming down to kick the door')
-            if jf_config.LEV_EVADE:
-                tries['lev_door'] = 1   # (BREACH_DOOR's Elbereth under the kicks to come: _lev_door)
             self._stop_levitating()
             return
         if jf_config.CFP_EEL:
@@ -1770,7 +1768,7 @@ class CastlePassage:
             from . import castle_cross
             if castle_cross.door_sea_fight(self):
                 return
-        if jf_config.BREACH_DOOR or self._lev_door():
+        if jf_config.BREACH_DOOR:
             # on Elbereth only what ignores it is worth a blow (hitting a scared monster erases it: mon.c setmangry)
             near = [m for m in self._hostiles_near(1) if self.dive._ignores_elbereth(m[3])]
             if near:
@@ -1792,11 +1790,6 @@ class CastlePassage:
             return
         self._set_state('kicking the door')
         agent.kick(*to_bot(*DOOR))
-
-    def _lev_door(self):
-        """LEV_EVADE: we came down from a lasting lift (a known ring / boots of levitation) to kick the back door:
-        BREACH_DOOR's Elbereth under us there, and blows only at what ignores it (see jf_config.LEV_EVADE)."""
-        return bool(jf_config.LEV_EVADE and self._tries.get('lev_door'))
 
     def _timed_levitation(self):
         """Levitating from a potion (it times out) rather than a ring or boots we can take off."""
